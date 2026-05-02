@@ -1,0 +1,77 @@
+install.packages("tuneR")
+library(tuneR)
+library(dplyr)
+install.packages("scales")
+library(scales)
+
+data <- read.csv("proteomics.csv")
+colnames(data)
+
+# rename important column
+data <- data %>%
+  rename(
+    ratio = Abundance.Ratio...EtOH..Vehicle.....Control..Vehicle.
+  )
+
+# remove missing or zero values
+data <- data %>%
+  filter(!is.na(ratio), ratio > 0)
+
+# convert to log2 scale
+data$log2FC <- log2(data$ratio)
+
+# create a fake "significance" metric since no p-values
+data$signal_strength <- abs(data$log2FC)
+
+# map to sound
+data$freq <- rescale(data$log2FC, to = c(200, 1000))
+data$amp  <- rescale(data$signal_strength, to = c(0.1, 1))
+
+# order proteins
+data <- data %>% arrange(desc(log2FC))
+
+# limit to top 100 proteins
+data <- data[1:100, ]
+
+
+notes <- lapply(1:nrow(data), function(i) {
+  sine(
+    freq = data$freq[i],
+    duration = 0.15
+  ) * data$amp[i]
+})
+
+# combine into song
+
+song <- do.call(bind, notes)
+
+writeWave(song, "proteome_song.wav")
+
+play(song)
+
+
+library(ggplot2)
+
+ggplot(data, aes(x = log2FC, y = freq)) +
+  geom_point(aes(color = signal_strength, size = signal_strength), alpha = 0.8) +
+  scale_color_gradient(low = "skyblue", high = "darkred") +
+  labs(
+    title = "Proteomic Changes Translated into Sound",
+    subtitle = "Each point represents a protein mapped to pitch and intensity",
+    x = "log2 Fold Change (EtOH vs Control)",
+    y = "Mapped Sound Frequency (Hz)",
+    color = "Signal Strength",
+    size = "Signal Strength"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "gray40"),
+    panel.grid.minor = element_blank()
+  )
+
+
+plot(data$log2FC, data$freq,
+     main = "Protein Abundance Mapped to Sound Frequency",
+     xlab = "log2 Fold Change",
+     ylab = "Frequency (Hz)")

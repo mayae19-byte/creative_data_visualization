@@ -1,0 +1,94 @@
+Introduction
+
+Alcohol use disorder (AUD) is associated with widespread molecular and cellular adaptations, particularly within brain regions involved in decision-making and cognitive flexibility. Traditional data visualization approaches, such as principal component analysis (PCA) or heatmaps, are effective but limited to visual interpretation. These methods may not fully capture the complexity or variability of large-scale proteomic datasets.
+
+To explore a nontraditional representation of these data, I developed an auditory (sonified) visualization of proteomic changes associated with ethanol (EtOH) exposure. Sonification allows patterns in molecular data to be perceived through sound, offering an alternative sensory modality for interpreting biological information.
+
+Methods
+Data Source and Processing
+
+Proteomic data were obtained from experimental comparisons between ethanol-exposed and control conditions. Specifically, the abundance ratio comparing EtOH (vehicle-treated) to control (vehicle-treated) samples was used.
+
+The dataset was cleaned by removing missing or zero values. Because the data were provided as abundance ratios, values were transformed to log2 scale to better represent fold changes symmetrically.
+
+Sonification Mapping
+
+Proteomic data were converted into sound using the following mappings:
+
+Log2 fold change (log2FC) → mapped to frequency (pitch)
+Higher expression = higher pitch
+Magnitude of change (|log2FC|) → mapped to amplitude (volume)
+Larger deviations = louder sound
+Protein rank → mapped to temporal sequence of notes
+
+Each protein was represented as a short sine wave tone, and all tones were concatenated to produce a continuous audio file representing global proteomic variation.
+
+R Implementation
+library(tuneR)
+library(dplyr)
+library(scales)
+
+# Load data
+data <- read.csv("data/proteomics.csv")
+
+# Rename relevant column
+data <- data %>%
+  rename(
+    ratio = Abundance.Ratio...EtOH..Vehicle.....Control..Vehicle.
+  )
+
+# Clean data
+data <- data %>%
+  filter(!is.na(ratio), ratio > 0)
+
+# Transform to log2 fold change
+data$log2FC <- log2(data$ratio)
+
+# Use magnitude as signal strength
+data$signal_strength <- abs(data$log2FC)
+
+# Map to sound properties
+data$freq <- rescale(data$log2FC, to = c(200, 1000))
+data$amp  <- rescale(data$signal_strength, to = c(0.1, 1))
+
+# Order proteins
+data <- data %>% arrange(desc(log2FC))
+
+# Limit to top 100 proteins
+data <- data[1:100, ]
+
+# Generate notes
+notes <- lapply(1:nrow(data), function(i) {
+  sine(
+    freq = data$freq[i],
+    duration = 0.15
+  ) * data$amp[i]
+})
+
+# Combine notes
+song <- do.call(bind, notes)
+
+# Save audio file
+writeWave(song, "proteome_song.wav")
+Results
+
+The resulting audio file (proteome_song.wav) represents the proteomic profile of ethanol exposure as a sequence of tones. Each tone corresponds to an individual protein, with pitch and volume reflecting the magnitude and direction of abundance changes.
+
+To complement the auditory representation, a simple visualization of the mapping between protein abundance and sound frequency is shown below:
+
+plot(data$log2FC, data$freq,
+     main = "Protein Abundance Mapped to Sound Frequency",
+     xlab = "log2 Fold Change",
+     ylab = "Frequency (Hz)",
+     pch = 16)
+Interpretation
+
+The sonified data provide an alternative perspective on proteomic changes associated with ethanol exposure. Proteins with large fold changes produce higher-pitched and louder tones, creating an auditory signature of molecular dysregulation.
+
+Compared to traditional visualizations, this approach emphasizes the variability and distribution of protein-level changes in a more intuitive and engaging format. Regions of the audio with rapid pitch shifts or increased intensity may reflect greater biological disruption.
+
+Conclusion
+
+This project demonstrates how proteomic data can be transformed into a non-visual format to enhance interpretation and engagement. Sonification offers a creative and accessible method for exploring complex biological datasets, particularly in the context of systems-level changes such as those observed in alcohol use disorder.
+
+Future work could extend this approach by incorporating statistical significance measures, comparing multiple experimental conditions, or layering multiple audio tracks to represent interacting biological pathways.
